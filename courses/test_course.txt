@@ -1,0 +1,10 @@
+
+Introduction to C Programming
+Chapter 1: Pointers
+
+A pointer is a variable that stores the memory address of another variable.
+think of it as a house address. The house is the variable, the address is the pointer.
+
+Stack vs Heap:
+Stack is for static memory allocation (local variables).
+Heap is for dynamic memory allocation (malloc).

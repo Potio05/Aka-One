@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# Vector Database
+qdrant_storage/
+
+# Credentials
+token.json
+
+# Local files
+.DS_Store

@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  # --- Vector Database ---
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: talebuj_qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    restart: always
+    networks:
+      - taleb_network
+
+  # --- Message Broker ---
+  redis:
+    image: redis:alpine
+    container_name: talebuj_redis
+    ports:
+      - "6379:6379"
+    restart: always
+    networks:
+      - taleb_network
+
+  # --- API Server ---
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: talebuj_backend
+    command: uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+      - "8080:8080"
+    volumes:
+      - .:/app
+    depends_on:
+      - qdrant
+      - redis
+    environment:
+      - QDRANT_HOST=qdrant
+      - REDIS_HOST=redis
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - taleb_network
+
+  # --- Background Worker ---
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: talebuj_worker
+    command: celery -A backend.celery_worker.celery worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - redis
+      - qdrant
+    environment:
+      - QDRANT_HOST=qdrant
+      - REDIS_HOST=redis
+      - OLLAMA_HOST=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - taleb_network
+
+  # --- Frontend (Streamlit) ---
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: talebuj_frontend
+    command: streamlit run app.py
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+    environment:
+      - BACKEND_URL=http://backend:8000
+    networks:
+      - taleb_network
+
+networks:
+  taleb_network:
+    name: taleb_network
