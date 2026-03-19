@@ -172,7 +172,7 @@ def _run_agent_sync(query: str) -> str:
     current_tools.append(create_skill)
     
     model = genai.GenerativeModel(
-        model_name='gemini-2.5-pro',
+        model_name='gemini-2.5-flash',
         tools=current_tools,
         system_instruction=SYSTEM_PROMPT
     )
