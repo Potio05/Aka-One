@@ -1,0 +1,15 @@
+[Unit]
+Description=AKA-ONE Node Daemon Services
+After=network.target
+
+[Service]
+Type=simple
+User=root
+# Update these paths to match your actual Python environment and client directory
+WorkingDirectory=/opt/aka-one/client
+ExecStart=/usr/bin/python3 /opt/aka-one/client/client_daemon.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

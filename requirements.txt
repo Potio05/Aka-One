@@ -2,17 +2,25 @@ fastapi
 uvicorn
 celery
 redis
-python-multipart
 python-dotenv
 # Core RAG
 llama-index-core
 llama-index-vector-stores-qdrant
 llama-index-embeddings-huggingface
-llama-index-llms-ollama
+llama-index-llms-ollama==0.1.5
 # Pinning
 transformers>=4.40.0
-sentence-transformers>=3.0.0
-qdrant-client
+sentence-transformers==2.7.0
+qdrant-client==1.9.1
 pymupdf
 google-api-python-client
 google-auth-oauthlib
+celery==5.4.0
+redis==5.0.4
+google-oauthlib
+google-auth
+google-auth-httplib2
+fastapi
+websockets
+websocket-client
+uvicornb

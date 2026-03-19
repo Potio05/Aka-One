@@ -5,6 +5,8 @@ from backend.celery_worker import ingest_classroom_course
 from backend.services.ingestion import TalebRAG
 from backend.services.visualizer import MemoryVisualizer
 from backend.services.classroom import ClassroomService
+from backend.agent.agent_core import AgentBrain
+from backend.agent.node_api import router as node_router
 import uuid
 
 # Logging Setup
@@ -30,6 +32,10 @@ class VizRequest(BaseModel):
 rag_service = TalebRAG()
 viz_service = MemoryVisualizer()
 classroom_service = ClassroomService()
+agent_brain = AgentBrain()
+
+# Include Node Router
+app.include_router(node_router, prefix="/api/nodes", tags=["Nodes"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -55,6 +61,23 @@ def chat(request: ChatRequest):
         return {"answer": str(response)}
     except Exception as e:
         logger.error(f"Chat Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Autonomous Agent Endpoint ---
+
+class AgentRequest(BaseModel):
+    query: str
+
+@app.post("/api/agent/task")
+def run_agent_task(request: AgentRequest):
+    """
+    Triggers the autonomous ReAct agent to solve a complex task.
+    """
+    try:
+        response = agent_brain.process_request(request.query)
+        return {"result": response}
+    except Exception as e:
+        logger.error(f"Agent Task Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- Classroom Auth & Data Endpoints ---

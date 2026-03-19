@@ -142,7 +142,7 @@ with st.sidebar:
     st.title("💻 AKA-ONE")
     st.markdown("---")
     st.write("**SYSTEM MODULES**")
-    mode = st.radio("Select Module", ["Terminal Chat 💬", "Memory Visualizer 🧠", "Data Ingestion 📥"])
+    mode = st.radio("Select Module", ["Terminal Chat 💬", "Memory Visualizer 🧠", "Data Ingestion 📥", "Autonomous Agent 🤖"])
     st.markdown("---")
     # Custom HTML Badge
     st.markdown('<div class="status-badge">● SYSTEM ONLINE</div>', unsafe_allow_html=True)
@@ -348,4 +348,58 @@ elif mode == "Data Ingestion 📥":
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
 
-
+# --- MODE: AGENT AUTONOME ---
+elif mode == "Autonomous Agent 🤖":
+    st.header("Global Orchestrator & Multi-PC Agent 🌍")
+    st.info("Ask the agent to install apps, edit code, or manage the network.")
+    
+    # Node Status Panel
+    with st.expander("📡 Network Nodes Status"):
+        if st.button("Refresh Nodes"):
+            try:
+                nodes_res = requests.get(f"{BACKEND_URL}/api/nodes/nodes", timeout=5)
+                if nodes_res.status_code == 200:
+                    nodes = nodes_res.json().get("nodes", {})
+                    if not nodes:
+                        st.warning("No nodes currently connected.")
+                    for nid, nurl in nodes.items():
+                        st.write(f"**{nid}** : {nurl}")
+                else:
+                    st.error("Failed to fetch nodes.")
+            except Exception as e:
+                st.error(f"Cannot connect to Brain: {e}")
+                
+    st.markdown("---")
+    
+    agent_prompt = st.chat_input("Ex: Install Chrome on PC-1 and add a new button to streamli...")
+    
+    if "agent_history" not in st.session_state:
+        st.session_state.agent_history = []
+        
+    for msg in st.session_state.agent_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            
+    if agent_prompt:
+        st.session_state.agent_history.append({"role": "user", "content": agent_prompt})
+        with st.chat_message("user"):
+            st.markdown(agent_prompt)
+            
+        with st.chat_message("assistant"):
+            agent_placeholder = st.empty()
+            with st.spinner("Agent is thinking, researching, and executing..."):
+                try:
+                    response = requests.post(
+                        f"{BACKEND_URL}/api/agent/task",
+                        json={"query": agent_prompt},
+                        timeout=300 # Agent tasks might take a long time
+                    )
+                    
+                    if response.status_code == 200:
+                        ans = response.json().get("result", "Done.")
+                        agent_placeholder.markdown(ans)
+                        st.session_state.agent_history.append({"role": "assistant", "content": ans})
+                    else:
+                        agent_placeholder.error(f"Brain Error: {response.text}")
+                except Exception as e:
+                    agent_placeholder.error(f"Network error with Agent Brain: {e}")
