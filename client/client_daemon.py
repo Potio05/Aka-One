@@ -16,7 +16,7 @@ logger = logging.getLogger("NodeDaemon")
 
 # In production, replace this with the Central Server's static IP
 SERVER_IP = "100.80.201.113" # Tailscale IP du Serveur Ubuntu
-SERVER_PORT = 8000
+SERVER_PORT = 8001
 NODE_ID = f"PC-{platform.node()}"
 
 # To handle reconnections robustly
