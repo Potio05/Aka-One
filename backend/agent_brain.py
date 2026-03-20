@@ -124,42 +124,25 @@ def create_skill(nom: str, code_python: str) -> str:
 # --- SYSTEM PROMPT & AGENT LOOP ---
 
 SYSTEM_PROMPT = """
-Tu es le cerveau autonome de "AKA-ONE", un Administrateur Système Distribué.
-Tu as pour mission de gérer, d'analyser et de configurer des ordinateurs sur le réseau local.
+Tu es l'Administrateur Système (NOC) en chef de l'infrastructure AKA-ONE.
+TU AS TOUS LES DROITS D'ACCÈS DU CRÉATEUR.
+NE RÉPONDS JAMAIS QUE TU ES UNE SIMPLE IA DÉPOURVUE D'ACCÈS. 
+Au lieu de parler, tu DOIS TOUJOURS utiliser tes Outils (Function Calling) pour agir.
 
-Tu as des outils de base, mais surtout un outil SURPUISSANT : "create_skill(nom, code_python)".
-Si on te demande une fonctionnalité complexe que tu n'as pas :
-1. Tu utilises "create_skill" pour coder un outil Python autonome.
-2. La fonction écrite DOIT avoir le nom "nom" et avoir une bonne docstring détaillée pour que tu saches comment l'utiliser ensuite.
-3. Le skill est compilé et greffé à ton cerveau dynamiquement et automatiquement.
+Tu as 4 Outils Standards OBLIGATOIRES:
+1. "lister_noeuds()" : Cherche les PCs en ligne.
+2. "verifier_etat_reseau()" : Donne le ping réseau (vers 8.8.8.8 et 192.168.100.1). OBLIGATOIRE qiuand on te demande de tester ou faire un ping global.
+3. "executer_sur_pc(id_pc, commande)" : Si on te demande de faire un diagnostic spécifique (ex: ipconfig, ping), trouve l'ID d'un pc via lister_noeuds() puis utilise cet outil pour lancer la commande bash/powershell.
+4. "reboot_modem()" : LANCE CET OUTIL SANS HÉSITER si on te demande formellement de redémarrer le modem ou internet.
 
-Exemple : Si on te demande de streamer l'écran, tu codes un skill "stream_screen" utilisant OpenCV ou autre.
-Outils Standards:
-- "lister_noeuds()" : Demande la liste des IDs (Noeuds).
-- "verifier_etat_reseau()" : Obtient le ping et la connectivité vers la passerelle (192.168.100.1) et Google (8.8.8.8).
-- "rechercher_logiciel(nom)" : Pour savoir comment s'appelle un logiciel ou obtenir de l'aide sur une syntaxe.
-- "executer_sur_pc(id_pc, commande)" : Pour exécuter du bash ou Powershell sur les noeuds.
-
-RÈGLES IMPORTANTES :
-- Réfléchis toujours étape par étape (Thought -> Action -> Observation).
-- Si tu dois installer quelque chose sur Windows, utilise "winget install <nom> --silent --accept-package-agreements --accept-source-agreements" (Phase 3.2).
-- Si on te demande d'effectuer une action, utilise directement "executer_sur_pc" pour accomplir ta tâche, puis analyse le résultat.
-- Fournis une réponse claire incluant un résumé des actions effectuées à l'utilisateur.
+RÈGLE D'OR : N'invente pas les résultats. Invoque la fonction, attends de recevoir le retour, puis dis ce que la fonction a retourné de manière robotique et brève.
 """
 
 # Configure API
 load_dotenv()
-api_key = os.environ.get("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
-else:
-    logger.warning("GEMINI_API_KEY manquant dans .env !")
 
 async def process_query_async(query: str) -> str:
     """Asynchronous entry point used by FastAPI to spawn the Agent reasoning loop."""
-    if not api_key:
-        return "Erreur: La clé GEMINI_API_KEY n'est pas configurée dans .env"
-        
     logger.info(f"Démarrage de la boucle ReAct pour: {query}")
     
     """Wrapper asynchrone pour ne pas bloquer l'Event Loop principal."""
@@ -172,6 +155,14 @@ def _run_agent_sync(query: str) -> str:
     # Reloading tools dynamically from our DYNAMIC_TOOLS list
     current_tools = DYNAMIC_TOOLS.copy()
     current_tools.append(create_skill)
+    
+    # Try loading reboot_modem if it exists
+    try:
+        from backend.skills.reboot_modem import reboot_modem
+        if reboot_modem.__name__ not in [t.__name__ for t in current_tools]:
+            current_tools.append(reboot_modem)
+    except Exception:
+        pass
     
     # Establish connection to the Local AI Host (Dell or Container Mapping)
     ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
