@@ -5,7 +5,8 @@ import importlib
 import logging
 import urllib.request
 import json
-import google.generativeai as genai
+import ollama
+from ollama import Client
 from dotenv import load_dotenv
 
 logger = logging.getLogger("AgentBrain")
@@ -26,6 +27,8 @@ def init_agent(loop, manager):
 
 # --- THE TOOLS (Function Calling) ---
 
+# Llama 3.1 native function calling compatibility mapping for tools.
+# Tools are kept exactly the same for dynamic plugin architecture!
 def lister_noeuds() -> str:
     """Outil 0 : Retourne la liste des IDs des PCs (Noeuds) actuellement connectés au réseau."""
     if not WS_MANAGER:
@@ -159,34 +162,75 @@ async def process_query_async(query: str) -> str:
         
     logger.info(f"Démarrage de la boucle ReAct pour: {query}")
     
-    # Run the blocking Gemini inference in a thread to not freeze the async web requests
+    """Wrapper asynchrone pour ne pas bloquer l'Event Loop principal."""
     loop = asyncio.get_running_loop()
-    response = await loop.run_in_executor(None, _run_agent_sync, query)
-    return response
+    return await loop.run_in_executor(None, _run_agent_sync, query)
 
 def _run_agent_sync(query: str) -> str:
-    """Synchronous function where the google-generativeai client manages the Tool Loop."""
+    """Synchronous function managing the multi-turn Tool Calling Loop for Ollama."""
     
     # Reloading tools dynamically from our DYNAMIC_TOOLS list
     current_tools = DYNAMIC_TOOLS.copy()
     current_tools.append(create_skill)
     
-    model = genai.GenerativeModel(
-        model_name='gemini-2.5-flash',
-        tools=current_tools,
-        system_instruction=SYSTEM_PROMPT
-    )
+    # Establish connection to the Local AI Host (Dell or Container Mapping)
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    client = Client(host=ollama_host)
+    
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": query}
+    ]
     
     try:
-        # start_chat automatically manages the history and function calls
-        # with enable_automatic_function_calling=True, the SDK handles the loop internally.
-        chat = model.start_chat(enable_automatic_function_calling=True)
+        max_turns = 10
+        turn = 0
+        while turn < max_turns:
+            turn += 1
+            response = client.chat(
+                model='llama3.1',
+                messages=messages,
+                tools=current_tools
+            )
+            
+            # The AI's response message mapping back to memory
+            ai_msg = response.get('message', {})
+            messages.append(ai_msg)
+            
+            # If the AI did not ask for tools, the job is done!
+            if not ai_msg.get('tool_calls'):
+                return ai_msg.get('content') or "Action accomplie (Aucun retour vocal du modèle)."
+            
+            # If the AI requires tools, execute them locally
+            for tool_call in ai_msg.get('tool_calls', []):
+                func_name = tool_call.get('function', {}).get('name')
+                func_args = tool_call.get('function', {}).get('arguments')
+                
+                logger.info(f"Ollama Call Tool: {func_name} avec {func_args}")
+                
+                # Retrieve the matching python function dynamically
+                try:
+                    target_func = next((f for f in current_tools if f.__name__ == func_name), None)
+                    if not target_func:
+                        result_output = f"Erreur : L'outil '{func_name}' n'existe pas."
+                    else:
+                        if isinstance(func_args, dict):
+                            result_output = str(target_func(**func_args))
+                        else:
+                            # Edge case with some ollama python parser quirks
+                            result_output = str(target_func())
+                except Exception as call_err:
+                    result_output = f"[Outil craché] : {call_err}"
+                
+                logger.info(f"Ollama Tool Result: {result_output}")
+                
+                # Provide the observation back to the Model
+                messages.append({
+                    "role": "tool",
+                    "content": result_output,
+                    "name": func_name
+                })
         
-        response = chat.send_message(query)
-        logger.info(f"Observation finale: {response.text}")
-        
-        return response.text
-        
-    except Exception as e:
-        logger.error(f"Erreur Agent: {e}")
-        return f"Erreur de l'agent: {e}"
+        return "Erreur: Trop d'itérations d'outils (Boucle infinie stoppée par sécurité)."
+    except Exception as api_err:
+        return f"Erreur fatale Ollama: {api_err}. Vérifiez que 'llama3.1' est téléchargé et que {ollama_host} est joignable."
