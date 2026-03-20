@@ -12,7 +12,7 @@ def reboot_modem() -> str:
     
     # --- IMPORTANT : MODIFIEZ CES IDENTIFIANTS SELON CEUX SOUS VOTRE MODEM ---
     USERNAME = "root"      # Typiquement 'root' ou 'telecomadmin' ou 'admin'
-    PASSWORD = "admin"     # Typiquement 'admin' ou 'admintelecom'
+    PASSWORD = "adminHW"     # Typiquement 'admin' ou 'admintelecom'
     
     logger.info(f"Tentative de connexion au routeur Huawei {ROUTER_URL} via Playwright...")
     
