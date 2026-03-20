@@ -72,9 +72,22 @@ def executer_sur_pc(id_pc: str, commande: str) -> str:
     except Exception as e:
         return f"[Erreur lors de l'exécution]: {e}"
 
+def memoriser_information(sujet: str, contenu: str) -> str:
+    """Saves an important rule, password, or system fact permanently into the AGI's Long-Term Vector Memory (Qdrant). Use this when the user asks you to remember something."""
+    from backend.services.memory import memory
+    logger.info(f"Outil appelé: memoriser_information({sujet})")
+    success = memory.memorize(sujet, contenu)
+    return "Information mémorisée avec succès dans la base vectorielle à long terme." if success else "Échec de la mémorisation (Qdrant injoignable)."
+
+def consulter_memoire(requete_recherche: str) -> str:
+    """Searches the AGI's Long-Term Memory (Qdrant) to recall rules, passwords, network IPs, or system facts relevant to the query. Use this if you don't know something about the infrastructure."""
+    from backend.services.memory import memory
+    logger.info(f"Outil appelé: consulter_memoire({requete_recherche})")
+    return memory.recall(requete_recherche)
+
 # --- ARCHITECTURE DES PLUGINS (Phase 4) ---
 
-DYNAMIC_TOOLS = [lister_noeuds, verifier_etat_reseau, rechercher_logiciel, executer_sur_pc]
+DYNAMIC_TOOLS = [lister_noeuds, verifier_etat_reseau, rechercher_logiciel, executer_sur_pc, memoriser_information, consulter_memoire]
 
 def create_skill(nom: str, code_python: str) -> str:
     """Dynamically creates and compiles a new Python tool/skill. The Python code must contain a function with the exact same name as 'nom'."""
@@ -116,9 +129,11 @@ Available Tools you MUST use:
 - "verifier_etat_reseau" : Runs a real ping test dynamically.
 - "executer_sur_pc" : Runs terminal commands on a PC.
 - "reboot_modem" : Restarts the modem physically.
+- "memoriser_information" : Saves a fact to your Long-Term Vector Memory.
+- "consulter_memoire" : Searches your Long-Term Memory for facts, IPs, passwords or rules.
 
 Rules:
-1. Always call tools if an action is required.
+1. Always call tools if an action is required. If asked a factual question about the network, ALWAYS call `consulter_memoire` first.
 2. Only answer the user after you have received the exact Tool output in French.
 """
 

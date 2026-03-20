@@ -5,3 +5,4 @@ uvicorn
 ollama
 playwright
 python-dotenv
+qdrant-client
