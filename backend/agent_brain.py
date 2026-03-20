@@ -30,7 +30,7 @@ def init_agent(loop, manager):
 # Llama 3.1 native function calling compatibility mapping for tools.
 # Tools are kept exactly the same for dynamic plugin architecture!
 def lister_noeuds() -> str:
-    """Outil 0 : Retourne la liste des IDs des PCs (Noeuds) actuellement connectés au réseau."""
+    """Gets the list of currently connected computers (nodes) on the network."""
     if not WS_MANAGER:
         return "Erreur: WS_MANAGER non initialisé."
     nodes = list(WS_MANAGER.active_connections.keys())
@@ -39,7 +39,7 @@ def lister_noeuds() -> str:
     return f"PCs connectés : {', '.join(nodes)}"
 
 def verifier_etat_reseau() -> str:
-    """Outil de surveillance : Retourne l'état de latence actuel du routeur local et de l'accès internet."""
+    """Performs a network ping test to check the latency of the local router and internet (8.8.8.8). Use this whenever the user asks for a ping or network status."""
     from backend.services.network_monitor import NETWORK_STATUS
     res = "Statut Réseau (NOC) :\n"
     for target, info in NETWORK_STATUS.items():
@@ -47,35 +47,24 @@ def verifier_etat_reseau() -> str:
     return res
 
 def rechercher_logiciel(nom: str) -> str:
-    """
-    Outil 1 : Utilise une recherche pour trouver un logiciel ou des commandes d'administration.
-    This simulates a quick web search or a package checking tool.
-    """
+    """Searches the internet for software installation instructions or bash/powershell commands."""
     logger.info(f"Outil appelé: rechercher_logiciel({nom})")
-    # Simulation d'un faux outil ou appel REST simple
-    # You can expand this to true Google Search if needed.
-    return f"Résultat: '{nom}' (Il est conseillé d'utiliser le gestionnaire de paquet système standard. Sur Windows: 'winget install {nom}', Sur Linux: 'apt-get install {nom}')."
+    return f"Résultat: '{nom}' (Il est conseillé d'utiliser winget sur Windows ou apt-get sur Linux)."
 
 def executer_sur_pc(id_pc: str, commande: str) -> str:
-    """
-    Outil 2 : Envoie une commande terminal à exécuter sur un PC spécifique via WebSocket, et renvoie le stdout/stderr.
-    """
+    """Executes a terminal native command (like bash, ping, ipconfig) on a specific remote PC."""
     if not WS_MANAGER or not SERVER_LOOP:
         return "[Erreur] Serveur WebSocket non initialisé."
         
     logger.info(f"Outil appelé: executer_sur_pc({id_pc}, '{commande}')")
     
-    # We must bridge sync tool execution with the async WebSocket Server
-    # We schedule the coroutine in the main loop and wait for it.
     future = asyncio.run_coroutine_threadsafe(
         WS_MANAGER.send_and_wait(id_pc, commande),
         SERVER_LOOP
     )
     
     try:
-        # Wait up to 60s for the remote PC to execute and respond
         result = future.result(timeout=60)
-        # Formater la réponse pour Gemini
         status = result.get("status")
         stdout = result.get("stdout", "")
         stderr = result.get("stderr", "")
@@ -85,21 +74,15 @@ def executer_sur_pc(id_pc: str, commande: str) -> str:
 
 # --- ARCHITECTURE DES PLUGINS (Phase 4) ---
 
-# Liste globale dynamique des outils de l'agent
 DYNAMIC_TOOLS = [lister_noeuds, verifier_etat_reseau, rechercher_logiciel, executer_sur_pc]
 
 def create_skill(nom: str, code_python: str) -> str:
-    """
-    Outil 4 : Permet à l'IA de s'auto-améliorer en écrivant un nouveau code Python (un 'skill')
-    qui sera chargé dynamiquement en mémoire comme un nouvel outil.
-    LE CODE PYTHON DOIT CONTENIR: une fonction portant EXACTEMENT le même nom que l'argument `nom`.
-    """
+    """Dynamically creates and compiles a new Python tool/skill. The Python code must contain a function with the exact same name as 'nom'."""
     filepath = os.path.join(SKILLS_DIR, f"{nom}.py")
     try:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(code_python)
             
-        # Chargement dynamique
         module_name = f"backend.skills.{nom}"
         
         if module_name in sys.modules:
@@ -109,33 +92,34 @@ def create_skill(nom: str, code_python: str) -> str:
             module = importlib.import_module(module_name)
             action_desc = "importé"
             
-        # On suppose que le code python contient une fonction portant le même nom
         if hasattr(module, nom):
             func = getattr(module, nom)
-            # Ajout à la liste des outils si elle n'y est pas encore
             if func.__name__ not in [t.__name__ for t in DYNAMIC_TOOLS]:
                 DYNAMIC_TOOLS.append(func)
-            return f"Succès: Le skill '{nom}' a été {action_desc} et ajouté dynamiquement aux outils du Cerveau ! Tu peux l'utiliser lors de ta prochaine action."
+            return f"Succès: Le skill '{nom}' a été ajouté ! Tu peux l'utiliser maintenant."
         else:
-            return f"Erreur: Le fichier {nom}.py a été créé, mais il ne contient pas de fonction '{nom}'."
+            return f"Erreur: Le code ne contient pas la fonction '{nom}'."
     except Exception as e:
-        return f"Erreur critique lors de la création du skill: {e}"
+        return f"Erreur critique: {e}"
 
 # --- SYSTEM PROMPT & AGENT LOOP ---
 
 SYSTEM_PROMPT = """
-Tu es l'Administrateur Système (NOC) en chef de l'infrastructure AKA-ONE.
-TU AS TOUS LES DROITS D'ACCÈS DU CRÉATEUR.
-NE RÉPONDS JAMAIS QUE TU ES UNE SIMPLE IA DÉPOURVUE D'ACCÈS. 
-Au lieu de parler, tu DOIS TOUJOURS utiliser tes Outils (Function Calling) pour agir.
+You are the autonomous NOC System Administrator of AKA-ONE.
+DO NOT SIMULATE OR FAKE RESULTS. DO NOT HALLUCINATE PING RESPONSES. 
+YOU MUST ALWAYS USE YOUR TOOLS TO INTERACT WITH THE SYSTEM.
 
-Tu as 4 Outils Standards OBLIGATOIRES:
-1. "lister_noeuds()" : Cherche les PCs en ligne.
-2. "verifier_etat_reseau()" : Donne le ping réseau (vers 8.8.8.8 et 192.168.100.1). OBLIGATOIRE qiuand on te demande de tester ou faire un ping global.
-3. "executer_sur_pc(id_pc, commande)" : Si on te demande de faire un diagnostic spécifique (ex: ipconfig, ping), trouve l'ID d'un pc via lister_noeuds() puis utilise cet outil pour lancer la commande bash/powershell.
-4. "reboot_modem()" : LANCE CET OUTIL SANS HÉSITER si on te demande formellement de redémarrer le modem ou internet.
+If the user asks for a "test de ping", YOU MUST EXPLICITLY CALL THE TOOL `verifier_etat_reseau` OR `executer_sur_pc`. NEVER reply with fake data.
 
-RÈGLE D'OR : N'invente pas les résultats. Invoque la fonction, attends de recevoir le retour, puis dis ce que la fonction a retourné de manière robotique et brève.
+Available Tools you MUST use:
+- "lister_noeuds" : Gets connected PCs.
+- "verifier_etat_reseau" : Runs a real ping test dynamically.
+- "executer_sur_pc" : Runs terminal commands on a PC.
+- "reboot_modem" : Restarts the modem physically.
+
+Rules:
+1. Always call tools if an action is required.
+2. Only answer the user after you have received the exact Tool output in French.
 """
 
 # Configure API
