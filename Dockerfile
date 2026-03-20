@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/wh
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Playwright Chromium dependencies for the Huawei Modem Reboot spoofing
+RUN playwright install chromium --with-deps
+
 # Copy application code
 COPY . .
 

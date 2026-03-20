@@ -1,43 +1,62 @@
-import requests
 import logging
+from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger("reboot_modem")
 
 def reboot_modem() -> str:
     """
-    Outil personnalisé : Redémarre physiquement (soft reboot) le modem/routeur local.
-    Ceci utilise une requête POST simulée vers 192.168.100.1.
+    Outil personnalisé : Redémarre physiquement (soft reboot) le modem Huawei HG8145V5.
+    Utilise Playwright (navigateur web invisible) pour contourner le cryptage Javascript de la page de login Huawei.
     """
-    ROUTER_IP = "192.168.100.1"
-    USERNAME = "admin" # À adapter
-    PASSWORD = "admin" # À adapter
+    ROUTER_URL = "http://192.168.100.1"
     
-    # Beaucoup de modems (ex: Huawei, ZTE, D-Link) nécessitent un format précis 
-    # pour le login (souvent Base64 ou HMAC) et un token CSRF.
-    # Dans ce script, nous fournissons un template général avec `requests.Session()`.
+    # --- IMPORTANT : MODIFIEZ CES IDENTIFIANTS SELON CEUX SOUS VOTRE MODEM ---
+    USERNAME = "root"      # Typiquement 'root' ou 'telecomadmin' ou 'admin'
+    PASSWORD = "admin"     # Typiquement 'admin' ou 'admintelecom'
     
-    session = requests.Session()
-    logger.info(f"Tentative de connexion au routeur {ROUTER_IP}...")
+    logger.info(f"Tentative de connexion au routeur Huawei {ROUTER_URL} via Playwright...")
     
     try:
-        # NOTE : Les adresses (/login.cgi, /reboot.cgi) varient selon le constructeur.
-        # L'utilisateur devra adapter ces URLs en inspectant le trafic réseau de son modem.
-        
-        # 1. Authentification
-        login_payload = {
-            "username": USERNAME,
-            "password": PASSWORD
-        }
-        # auth_res = session.post(f"http://{ROUTER_IP}/api/system/user_login", data=login_payload, timeout=5)
-        # auth_res.raise_for_status()
-        
-        # 2. Exécution du Reboot
-        # reboot_payload = {"action": "reboot"}
-        # reboot_res = session.post(f"http://{ROUTER_IP}/api/system/reboot", data=reboot_payload, timeout=5)
-        # reboot_res.raise_for_status()
-        
-        return "Avertissement: Le script 'reboot_modem' est un template fonctionnel. Vous devez configurer les URLs exactes d'authentification et de reboot (/login.cgi, etc.) en fonction du modèle précis de votre routeur (Huawei, ZTE, etc.) directement dans le fichier `backend/skills/reboot_modem.py`."
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Erreur de communication avec le modem: {e}")
-        return f"Échec du redémarrage du modem : {str(e)}"
+        with sync_playwright() as p:
+            # Lance un navigateur Chrome Chromium invisible
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page()
+            
+            # 1. Page de Connexion
+            page.goto(ROUTER_URL)
+            page.wait_for_timeout(1000) # Laisse le temps au JS de Huawei de charger
+            
+            # Les IDs standards de la page de login Huawei HG8145V5
+            page.fill("#txt_Username", USERNAME)
+            page.fill("#txt_Password", PASSWORD)
+            page.click("#button_login")
+            
+            logger.info("Identifiants entrés. Attente de la validation...")
+            page.wait_for_timeout(3000)
+            
+            # 2. Page de Reboot
+            # L'URL directe de la frame de reboot chez Huawei
+            reboot_page_url = f"{ROUTER_URL}/html/ssmp/reset/reset.asp"
+            page.goto(reboot_page_url)
+            page.wait_for_timeout(2000)
+            
+            # Script personnalisé pour intercepter la popup "Are you sure?"
+            page.on("dialog", lambda dialog: dialog.accept())
+            
+            # Clique sur le bouton Redémarrer (l'ID du bouton sur le HG8145V5 est souvent 'btn_reboot')
+            # On utilise un test au cas ou son ID est différent (Huawei utilise parfois 'Reset' ou des IDs en majuscule)
+            try:
+                page.click("#btn_reboot", timeout=2000)
+            except:
+                # Si l'ID a changé, on cible le bouton qui contient le texte Reboot/Restart/Redémarrer
+                page.locator("button:has-text('Reboot'), button:has-text('Restart'), button:has-text('Redémarrer')").click()
+                
+            logger.info("Bouton de Redémarrage cliqué avec succès.")
+            page.wait_for_timeout(2000) # Délai pour que le modem accuse réception
+            
+            browser.close()
+            return f"Succès : Le modem Huawei HG8145V5 ({ROUTER_URL}) est en cours de redémarrage (l'Action Playwright a réussi)."
+            
+    except Exception as e:
+        logger.error(f"Erreur Playwright lors du reboot: {e}")
+        return f"Échec du redémarrage du modem Huawei : {str(e)}"
