@@ -155,13 +155,23 @@ def _run_agent_sync(query: str) -> str:
     current_tools = DYNAMIC_TOOLS.copy()
     current_tools.append(create_skill)
     
-    # Try loading reboot_modem if it exists
+    # Auto-Load all skills from backend/skills/ directory
     try:
-        from backend.skills.reboot_modem import reboot_modem
-        if reboot_modem.__name__ not in [t.__name__ for t in current_tools]:
-            current_tools.append(reboot_modem)
-    except Exception:
-        pass
+        import inspect
+        for filename in os.listdir(SKILLS_DIR):
+            if filename.endswith(".py") and filename != "__init__.py":
+                module_name = filename[:-3]
+                try:
+                    mod = importlib.import_module(f"backend.skills.{module_name}")
+                    # Find the function with the exact same name as the file
+                    if hasattr(mod, module_name):
+                        func = getattr(mod, module_name)
+                        if inspect.isfunction(func) and func.__name__ not in [t.__name__ for t in current_tools]:
+                            current_tools.append(func)
+                except Exception as ex:
+                    logger.error(f"Impossible de charger le skill '{module_name}': {ex}")
+    except Exception as e:
+        logger.error(f"Erreur lors du scan des skills: {e}")
     
     # Establish connection to the Local AI Host (Dell or Container Mapping)
     ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
