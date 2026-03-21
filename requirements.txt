@@ -17,7 +17,6 @@ qdrant-client==1.9.1
 pymupdf
 google-api-python-client
 google-auth-oauthlib
-google-oauthlib
 google-auth
 google-auth-httplib2
 celery==5.4.0
