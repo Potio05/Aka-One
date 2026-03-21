@@ -42,7 +42,7 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - REDIS_HOST=redis
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://100.66.240.64:11434}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -63,7 +63,7 @@ services:
     environment:
       - QDRANT_HOST=qdrant
       - REDIS_HOST=redis
-      - OLLAMA_HOST=http://host.docker.internal:11434
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://100.66.240.64:11434}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
