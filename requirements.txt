@@ -2,7 +2,24 @@ fastapi
 websockets
 websocket-client
 uvicorn
-ollama
-playwright
+python-multipart
 python-dotenv
-qdrant-client
+# Core RAG
+llama-index-core
+llama-index-vector-stores-qdrant
+llama-index-embeddings-huggingface
+llama-index-llms-ollama==0.1.5
+ollama
+# Pinning
+transformers>=4.40.0
+sentence-transformers==2.7.0
+qdrant-client==1.9.1
+pymupdf
+google-api-python-client
+google-auth-oauthlib
+google-oauthlib
+google-auth
+google-auth-httplib2
+celery==5.4.0
+redis==5.0.4
+playwright
