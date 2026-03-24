@@ -1,18 +1,19 @@
 import logging
+import os
 from playwright.sync_api import sync_playwright
 
 logger = logging.getLogger("reboot_modem")
 
 def reboot_modem() -> str:
     """
-    Outil personnalisé : Redémarre physiquement (soft reboot) le modem Huawei HG8145V5.
-    Utilise Playwright (navigateur web invisible) pour contourner le cryptage Javascript de la page de login Huawei.
+    Outil critique: Redémarre physiquement le routeur Internet (Modem) via son interface d'administration Web.
+    A utiliser si le ping internet est mort depuis plus de 3 minutes.
     """
-    ROUTER_URL = "http://192.168.100.1"
+    router_ip = os.environ.get("ROUTER_IP", "192.168.100.1")
+    router_user = os.environ.get("ROUTER_USER", "telecomadmin")
+    router_pass = os.environ.get("ROUTER_PASS", "admintelecom")
     
-    # --- IMPORTANT : MODIFIEZ CES IDENTIFIANTS SELON CEUX SOUS VOTRE MODEM ---
-    USERNAME = "root"      # Typiquement 'root' ou 'telecomadmin' ou 'admin'
-    PASSWORD = "adminHW"     # Typiquement 'admin' ou 'admintelecom'
+    ROUTER_URL = f"http://{router_ip}"
     
     logger.info(f"Tentative de connexion au routeur Huawei {ROUTER_URL} via Playwright...")
     
@@ -27,8 +28,8 @@ def reboot_modem() -> str:
             page.wait_for_timeout(1000) # Laisse le temps au JS de Huawei de charger
             
             # Les IDs standards de la page de login Huawei HG8145V5
-            page.fill("#txt_Username", USERNAME)
-            page.fill("#txt_Password", PASSWORD)
+            page.fill("#txt_Username", router_user)
+            page.fill("#txt_Password", router_pass)
             page.click("#button_login")
             
             logger.info("Identifiants entrés. Attente de la validation...")

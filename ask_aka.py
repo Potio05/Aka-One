@@ -18,7 +18,7 @@ def main():
             if not query.strip():
                 continue
                 
-            print("[\u23F3 AKA-ONE réfléchit et exécute...]")
+            print("[...] AKA-ONE réfléchit et exécute...")
             
             response = requests.post(SERVER_URL, json={"query": query}, timeout=120)
             
@@ -35,4 +35,8 @@ def main():
             print(f"\n[ERREUR CRITIQUE] > {e}\n")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"\n[ERREUR CRITIQUE SYSTEME] : {e}")
+        input("\nAppuyez sur Entrée pour fermer cette fenêtre...")
